@@ -1,5 +1,5 @@
 {
-  "name": "dv",
+  "name": "ndv",
   "version": "1.10.1",
   "description": "DocumentVision is a node.js library for processing and understanding scanned documents",
   "keywords": [
@@ -15,9 +15,9 @@
     "tesseract",
     "zxing"
   ],
-  "homepage": "https://github.com/creatale/node-dv",
+  "homepage": "https://github.com/thlorenz/ndv",
   "bugs": {
-    "url": "https://github.com/creatale/node-dv/issues"
+    "url": "https://github.com/thlorenz/ndv/issues"
   },
   "author": "creatale GmbH <contact@creatale.de>",
   "contributors": [
@@ -26,12 +26,13 @@
     "routix <backup32@yandex.ru>",
     "Christian Dittrich <christian.dittrich@creatale.de>",
     "chrox <chrox.huang@gmail.com>",
-    "rashfael <rashfael@creatale.de>"
+    "rashfael <rashfael@creatale.de>",
+    "Thorsten Lorenz <thlorenz10@gmail.com>"
   ],
   "main": "./lib/dv",
   "repository": {
     "type": "git",
-    "url": "git://github.com/creatale/node-dv.git"
+    "url": "git://github.com/thlorenz/ndv.git"
   },
   "scripts": {
     "postinstall": "node-gyp clean",
