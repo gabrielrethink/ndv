@@ -35,7 +35,7 @@
     "url": "git://github.com/thlorenz/ndv.git"
   },
   "scripts": {
-    "postinstall": "node-gyp clean",
+    "postinstall2": "node-gyp clean",
     "test": "mocha test"
   },
   "dependencies": {
