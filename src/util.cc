@@ -27,20 +27,20 @@ Box* toBox(Nan::NAN_METHOD_ARGS_TYPE args, int start, int* end)
 {
     if (args[start]->IsNumber() && args[start + 1]->IsNumber()
             && args[start + 2]->IsNumber() && args[start + 3]->IsNumber()) {
-        int x = floor(args[start + 0]->ToNumber()->Value());
-        int y = floor(args[start + 1]->ToNumber()->Value());
-        int width = ceil(args[start + 2]->ToNumber()->Value());
-        int height = ceil(args[start + 3]->ToNumber()->Value());
+        int x = floor(Nan::To<double>(args[start + 0]).ToChecked());
+        int y = floor(Nan::To<double>(args[start + 1]).ToChecked());
+        int width = ceil(Nan::To<double>(args[start + 2]).ToChecked());
+        int height = ceil(Nan::To<double>(args[start + 3]).ToChecked());
         if (end) {
             *end = start + 3;
         }
         return boxCreate(x, y, width, height);
     } else if (args[start]->IsObject()) {
-        Handle<Object> object = args[start]->ToObject();
-        int x = floor(object->Get(Nan::New("x").ToLocalChecked())->ToNumber()->Value());
-        int y = floor(object->Get(Nan::New("y").ToLocalChecked())->ToNumber()->Value());
-        int width = ceil(object->Get(Nan::New("width").ToLocalChecked())->ToNumber()->Value());
-        int height = ceil(object->Get(Nan::New("height").ToLocalChecked())->ToNumber()->Value());
+        Local<Object> object = args[start]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+        int x = floor(Nan::To<double>(object->Get(Nan::New("x").ToLocalChecked())).ToChecked());
+        int y = floor(Nan::To<double>(object->Get(Nan::New("y").ToLocalChecked())).ToChecked());
+        int width = ceil(Nan::To<double>(object->Get(Nan::New("width").ToLocalChecked())).ToChecked());
+        int height = ceil(Nan::To<double>(object->Get(Nan::New("height").ToLocalChecked())).ToChecked());
         if (end) {
             *end = start;
         }
@@ -56,7 +56,7 @@ Box* toBox(Nan::NAN_METHOD_ARGS_TYPE args, int start, int* end)
 int toOp(v8::Local<v8::Value> value)
 {
     int result  = L_FLIP_PIXELS;
-    String::Utf8Value op(value->ToString());
+    String::Utf8Value op(Nan::GetCurrentContext()->GetIsolate(), value->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>()));
     if (strcmp("set", *op) == 0) {
         result = L_SET_PIXELS;
     } else if (strcmp("clear", *op) == 0) {

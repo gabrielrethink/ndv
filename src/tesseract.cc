@@ -71,7 +71,7 @@ NAN_MODULE_INIT(Tesseract::Init)
     Nan::SetPrototypeMethod(constructor_template, "findSymbols", FindSymbols);
     Nan::SetPrototypeMethod(constructor_template, "findText", FindText);
     
-    target->Set(Nan::New("Tesseract").ToLocalChecked(), constructor_template->GetFunction());
+    target->Set(Nan::New("Tesseract").ToLocalChecked(), constructor_template->GetFunction(Nan::GetCurrentContext()).ToLocalChecked());
 }
 
 NAN_METHOD(Tesseract::New)
@@ -80,26 +80,26 @@ NAN_METHOD(Tesseract::New)
     Local<String> lang;
     Local<Object> image;
 	if (info.Length() == 1 && info[0]->IsString()) {
-        datapath = info[0]->ToString();
+        datapath = info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>());
         lang = Nan::New<String>("eng").ToLocalChecked();
     } else if (info.Length() == 2 && info[0]->IsString() && info[1]->IsString()) {
-        datapath = info[0]->ToString();
-        lang = info[1]->ToString();
+        datapath = info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>());
+        lang = info[1]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>());
     } else if (info.Length() == 3 && info[0]->IsString() && info[1]->IsString()
                && Image::HasInstance(info[2])) {
-        datapath = info[0]->ToString();
-        lang = info[1]->ToString();
-        image = info[2]->ToObject();
+        datapath = info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>());
+        lang = info[1]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>());
+        image = info[2]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
     } else {
         return Nan::ThrowTypeError("cannot convert argument list to "
                      "(datapath: String) or "
                      "(datapath: String, language: String) or "
                      "(datapath: String, language: String, image: Image)");
     }
-    Tesseract* obj = new Tesseract(*String::Utf8Value(datapath),
-                                   *String::Utf8Value(lang));
+    Tesseract* obj = new Tesseract(*String::Utf8Value(info.GetIsolate(), datapath),
+                                   *String::Utf8Value(info.GetIsolate(), lang));
     if (!image.IsEmpty()) {
-        Local<Object> image_ = image->ToObject();
+        Local<Object> image_ = image->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
         obj->image_.Reset(image_);
         obj->api_.SetImage(Image::Pixels(image_));
     }
@@ -122,7 +122,7 @@ NAN_SETTER(Tesseract::SetImage)
             obj->image_.Reset();
         }
         if (!value->IsNull()) {
-            Local<Object> image_ = value->ToObject();
+            Local<Object> image_ = value->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
             obj->image_.Reset(image_);
             obj->api_.SetImage(Image::Pixels(image_));
         } else {
@@ -144,16 +144,16 @@ NAN_SETTER(Tesseract::SetRectangle)
 {
     Nan::HandleScope scope;
     Tesseract* obj = Nan::ObjectWrap::Unwrap<Tesseract>(info.This());
-    Local<Object> rect = value->ToObject();
+    Local<Object> rect = value->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
     if (value->IsObject()) {
         if (!obj->rectangle_.IsEmpty()) {
             obj->rectangle_.Reset();
         }
         obj->rectangle_.Reset(rect);
-        int x = floor(rect->Get(Nan::New("x").ToLocalChecked())->ToNumber()->Value());
-        int y = floor(rect->Get(Nan::New("y").ToLocalChecked())->ToNumber()->Value());
-        int width = ceil(rect->Get(Nan::New("width").ToLocalChecked())->ToNumber()->Value());
-        int height = ceil(rect->Get(Nan::New("height").ToLocalChecked())->ToNumber()->Value());
+        int x = floor(Nan::To<double>(rect->Get(Nan::New("x").ToLocalChecked())).ToChecked());
+        int y = floor(Nan::To<double>(rect->Get(Nan::New("y").ToLocalChecked())).ToChecked());
+        int width = ceil(Nan::To<double>(rect->Get(Nan::New("width").ToLocalChecked())).ToChecked());
+        int height = ceil(Nan::To<double>(rect->Get(Nan::New("height").ToLocalChecked())).ToChecked());
         if (!obj->image_.IsEmpty()) {
             // WORKAROUND: clamp rectangle to prevent occasional crashes.
             PIX* pix = Image::Pixels(Nan::New<Object>(obj->image_));
@@ -209,7 +209,7 @@ NAN_SETTER(Tesseract::SetPageSegMode)
 {
     Nan::HandleScope scope;
     Tesseract* obj = Nan::ObjectWrap::Unwrap<Tesseract>(info.This());
-    String::Utf8Value pageSegMode(value);
+    String::Utf8Value pageSegMode(info.GetIsolate(), value);
     if (strcmp("osd_only", *pageSegMode) == 0) {
         obj->api_.SetPageSegMode(tesseract::PSM_OSD_ONLY);
     } else if (strcmp("auto_osd", *pageSegMode) == 0) {
@@ -258,7 +258,7 @@ NAN_SETTER(Tesseract::SetSymbolWhitelist)
     Nan::HandleScope scope;
     Tesseract* obj = Nan::ObjectWrap::Unwrap<Tesseract>(info.This());
     if (value->IsString()) {
-        String::Utf8Value whitelist(value);
+        String::Utf8Value whitelist(info.GetIsolate(), value);
         obj->api_.SetVariable("tessedit_char_whitelist", *whitelist);
     } else {
         Nan::ThrowTypeError("value must be of type string");
@@ -269,8 +269,8 @@ NAN_SETTER(Tesseract::SetVariable)
 {
     Nan::HandleScope scope;
     Tesseract* obj = Nan::ObjectWrap::Unwrap<Tesseract>(info.This());
-    String::Utf8Value name(property);
-    String::Utf8Value val(value);
+    String::Utf8Value name(info.GetIsolate(), property);
+    String::Utf8Value val(info.GetIsolate(), value);
     obj->api_.SetVariable(*name, *val);
 }
 
@@ -278,7 +278,7 @@ NAN_GETTER(Tesseract::GetIntVariable)
 {
     Nan::HandleScope scope;
     Tesseract* obj = Nan::ObjectWrap::Unwrap<Tesseract>(info.This());
-    String::Utf8Value name(property);
+    String::Utf8Value name(info.GetIsolate(), property);
     int value;
     if(obj->api_.GetIntVariable(*name, &value)) {
         info.GetReturnValue().Set(Nan::New(value));
@@ -292,7 +292,7 @@ NAN_GETTER(Tesseract::GetBoolVariable)
 {
     Nan::HandleScope scope;
     Tesseract* obj = Nan::ObjectWrap::Unwrap<Tesseract>(info.This());
-    String::Utf8Value name(property);
+    String::Utf8Value name(info.GetIsolate(), property);
     bool value;
     if (obj->api_.GetBoolVariable(*name, &value)) {
         info.GetReturnValue().Set(Nan::New(value));
@@ -305,7 +305,7 @@ NAN_GETTER(Tesseract::GetDoubleVariable)
 {
     Nan::HandleScope scope;
     Tesseract* obj = Nan::ObjectWrap::Unwrap<Tesseract>(info.This());
-    String::Utf8Value name(property);
+    String::Utf8Value name(info.GetIsolate(), property);
     double value;
     if(obj->api_.GetDoubleVariable(*name, &value)) {
         info.GetReturnValue().Set(Nan::New(value));
@@ -319,7 +319,7 @@ NAN_GETTER(Tesseract::GetStringVariable)
 {
     Nan::HandleScope scope;
     Tesseract* obj = Nan::ObjectWrap::Unwrap<Tesseract>(info.This());
-    String::Utf8Value name(property);
+    String::Utf8Value name(info.GetIsolate(), property);
     const char *p = obj->api_.GetStringVariable(*name);
     if((p != NULL)) {
         ReturnValue(p);
@@ -388,12 +388,12 @@ NAN_METHOD(Tesseract::FindText)
 {
     Tesseract* obj = Nan::ObjectWrap::Unwrap<Tesseract>(info.This());
     if (info.Length() >= 1 && info[0]->IsString()) {
-        String::Utf8Value mode(info[0]);
+        String::Utf8Value mode(info.GetIsolate(), info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>()));
         bool withConfidence = false;
         if (info.Length() == 2 && info[1]->IsBoolean()) {
-            withConfidence = info[1]->BooleanValue();
+            withConfidence = Nan::To<bool>(info[1]).ToChecked();
         } else if (info.Length() == 3 && info[2]->IsBoolean()) {
-            withConfidence = info[2]->BooleanValue();
+            withConfidence = Nan::To<bool>(info[2]).ToChecked();
         }
         const char *text = NULL;
         bool modeValid = true;
@@ -402,9 +402,9 @@ NAN_METHOD(Tesseract::FindText)
         } else if (strcmp("unlv", *mode) == 0) {
             text = obj->api_.GetUNLVText();
         } else if (strcmp("hocr", *mode) == 0 && info.Length() == 2 && info[1]->IsInt32()) {
-            text = obj->api_.GetHOCRText(info[1]->Int32Value());
+            text = obj->api_.GetHOCRText(Nan::To<int32_t>(info[1]).FromJust());
         } else if (strcmp("box", *mode) == 0 && info.Length() == 2 && info[1]->IsInt32()) {
-            text = obj->api_.GetBoxText(info[1]->Int32Value());
+            text = obj->api_.GetBoxText(Nan::To<int32_t>(info[1]).FromJust());
         } else {
             modeValid = false;
         }
@@ -447,7 +447,7 @@ Nan::NAN_METHOD_RETURN_TYPE Tesseract::TransformResult(tesseract::PageIteratorLe
     Nan::HandleScope scope;
     bool recognize = true;
     if (args.Length() >= 1 && args[0]->IsBoolean()) {
-        recognize = args[0]->BooleanValue();
+        recognize = Nan::To<bool>(args[0]).FromJust();
     }
     tesseract::PageIterator *it = 0;
     if (recognize) {
@@ -472,7 +472,7 @@ Nan::NAN_METHOD_RETURN_TYPE Tesseract::TransformResult(tesseract::PageIteratorLe
         int left, top, right, bottom;
         if (it->BoundingBoxInternal(level, &left, &top, &right, &bottom)) {
             // Extract image coordiante box.
-            Handle<Object> box = Nan::New<Object>();
+            Local<Object> box = Nan::New<Object>();
             box->Set(Nan::New("x").ToLocalChecked(), Nan::New<Int32>(left));
             box->Set(Nan::New("y").ToLocalChecked(), Nan::New<Int32>(top));
             box->Set(Nan::New("width").ToLocalChecked(), Nan::New<Int32>(right - left));

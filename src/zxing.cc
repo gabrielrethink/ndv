@@ -149,7 +149,7 @@ NAN_MODULE_INIT(ZXing::Init)
     Nan::SetAccessor(proto, Nan::New("tryHarder").ToLocalChecked(), GetTryHarder, SetTryHarder);
     
     Nan::SetPrototypeMethod(ctor, "findCode", FindCode);
-    Nan::Set(target, name, ctor->GetFunction());
+    Nan::Set(target, name, ctor->GetFunction(Nan::GetCurrentContext()).ToLocalChecked());
 }
 
 NAN_METHOD(ZXing::New)
@@ -157,14 +157,14 @@ NAN_METHOD(ZXing::New)
 	if (!info.IsConstructCall()) {
 		std::vector<v8::Local<v8::Value>> args(info.Length());
 		for (std::size_t i = 0; i < args.size(); ++i) args[i] = info[i];	    
-	    auto inst = Nan::NewInstance(info.Callee(), args.size(), args.data());
+	    auto inst = Nan::NewInstance(v8::Local<v8::Function>::Cast(info.Data()), args.size(), args.data());
 	    if (!inst.IsEmpty()) info.GetReturnValue().Set(inst.ToLocalChecked());
 	    return;
 	}
 
     Local<Object> image;
     if (info.Length() == 1 && Image::HasInstance(info[0])) {
-        image = info[0]->ToObject();
+        image = info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
     } else if (info.Length() != 0) {
         return Nan::ThrowTypeError("cannot convert argument list to "
                      "() or "
@@ -172,7 +172,7 @@ NAN_METHOD(ZXing::New)
     }
     ZXing* obj = new ZXing();
     if (!image.IsEmpty()) {
-        obj->image_.Reset(image->ToObject());
+        obj->image_.Reset(image->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
     }
     obj->Wrap(info.This());
 }
@@ -191,7 +191,7 @@ NAN_SETTER(ZXing::SetImage)
             obj->image_.Reset();
         }
         if (!value->IsNull()) {
-            obj->image_.Reset(value->ToObject());
+            obj->image_.Reset(value->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
         }
     } else {
         Nan::ThrowTypeError("value must be of type Image");
@@ -213,13 +213,13 @@ NAN_SETTER(ZXing::SetFormats)
 {
     ZXing* obj = Nan::ObjectWrap::Unwrap<ZXing>(info.This());
     if (value->IsObject()) {
-        Local<Object> format = value->ToObject();
+        Local<Object> format = value->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
         bool tryHarder = obj->hints_.getTryHarder();
         obj->hints_.clear();
         obj->hints_.setTryHarder(tryHarder);
         for (size_t i = 0; i < BARCODEFORMATS_LENGTH; ++i) {
         	auto name = Nan::New(zxing::BarcodeFormat::barcodeFormatNames[BARCODEFORMATS[i]]).ToLocalChecked();
-            if (format->Get(name)->BooleanValue()) {
+            if (Nan::To<bool>(format->Get(name)).ToChecked()) {
                 obj->hints_.addFormat(BARCODEFORMATS[i]);
             }
         }
@@ -238,7 +238,7 @@ NAN_SETTER(ZXing::SetTryHarder)
 {
     ZXing* obj = Nan::ObjectWrap::Unwrap<ZXing>(info.This());
     if (value->IsBoolean()) {
-        obj->hints_.setTryHarder(value->BooleanValue());
+        obj->hints_.setTryHarder(Nan::To<bool>(value).ToChecked());
     } else {
         Nan::ThrowTypeError("value must be of type bool");
     }
@@ -263,7 +263,7 @@ NAN_METHOD(ZXing::FindCode)
         object->Set(Nan::New("data").ToLocalChecked(),
         		Nan::New<String>(resultStr.c_str()).ToLocalChecked());
         object->Set(Nan::New("buffer").ToLocalChecked(),
-        		Nan::CopyBuffer((char*)resultStr.data(), resultStr.length()).ToLocalChecked());
+        		Nan::NewBuffer((char*)resultStr.data(), resultStr.length()).ToLocalChecked());
         Local<Array> points = Nan::New<Array>();
         auto strX = Nan::New("x").ToLocalChecked();
         auto strY = Nan::New("y").ToLocalChecked();

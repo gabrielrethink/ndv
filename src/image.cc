@@ -174,12 +174,12 @@ cv::Mat pix8ToMat(PIX *pix8)
     return mat;
 }
 
-bool Image::HasInstance(Handle<Value> val)
+bool Image::HasInstance(Local<Value> val)
 {
     if (!val->IsObject()) {
         return false;
     }
-    return Nan::New(constructor_template)->HasInstance(val->ToObject());
+    return Nan::New(constructor_template)->HasInstance(val->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
 }
 
 Pix *Image::Pixels(Local<Object> obj)
@@ -194,16 +194,16 @@ NAN_MODULE_INIT(Image::Init)
     ctor->SetClassName(Nan::New("Image").ToLocalChecked());
     ctorInst->SetInternalFieldCount(1);
     
-	Nan::SetAccessor(ctorInst, Nan::New("width").ToLocalChecked(), GetWidth);
-	Nan::SetAccessor(ctorInst, Nan::New("height").ToLocalChecked(), GetHeight);
-	Nan::SetAccessor(ctorInst, Nan::New("depth").ToLocalChecked(), GetDepth);
+    Nan::SetAccessor(ctorInst, Nan::New("width").ToLocalChecked(), GetWidth);
+    Nan::SetAccessor(ctorInst, Nan::New("height").ToLocalChecked(), GetHeight);
+    Nan::SetAccessor(ctorInst, Nan::New("depth").ToLocalChecked(), GetDepth);
 	
-	Nan::SetPrototypeMethod(ctor, "invert", Invert);
-	Nan::SetPrototypeMethod(ctor, "or", Or);
-	Nan::SetPrototypeMethod(ctor, "and", And);
-	Nan::SetPrototypeMethod(ctor, "xor", Xor);
-	Nan::SetPrototypeMethod(ctor, "add", Add);
-	Nan::SetPrototypeMethod(ctor, "subtract", Subtract);
+    Nan::SetPrototypeMethod(ctor, "invert", Invert);
+    Nan::SetPrototypeMethod(ctor, "or", Or);
+    Nan::SetPrototypeMethod(ctor, "and", And);
+    Nan::SetPrototypeMethod(ctor, "xor", Xor);
+    Nan::SetPrototypeMethod(ctor, "add", Add);
+    Nan::SetPrototypeMethod(ctor, "subtract", Subtract);
     Nan::SetPrototypeMethod(ctor, "convolve", Convolve);
     Nan::SetPrototypeMethod(ctor, "unsharp", Unsharp);
     Nan::SetPrototypeMethod(ctor, "rotate", Rotate);
@@ -248,7 +248,7 @@ NAN_MODULE_INIT(Image::Init)
 Local<Object> Image::New(Pix *pix)
 {
     Nan::EscapableHandleScope scope;
-    Local<Object> instance = Nan::New(constructor_template)->GetFunction()->NewInstance();
+    Local<Object> instance = Nan::NewInstance(Nan::GetFunction(Nan::New(constructor_template)).ToLocalChecked()).ToLocalChecked();
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(instance);
     obj->pix_ = pix;
     if (obj->pix_) {
@@ -263,7 +263,7 @@ NAN_METHOD(Image::New)
 	    // [NOTE] generic recursive call with `new`
 		std::vector<v8::Local<v8::Value>> args(info.Length());
 		for (std::size_t i = 0; i < args.size(); ++i) args[i] = info[i];	    
-	    auto inst = Nan::NewInstance(info.Callee(), args.size(), args.data());
+	    auto inst = Nan::NewInstance(v8::Local<v8::Function>::Cast(info.Data()), args.size(), args.data());
 	    if (!inst.IsEmpty()) info.GetReturnValue().Set(inst.ToLocalChecked());
 	    return;
 	}
@@ -272,10 +272,10 @@ NAN_METHOD(Image::New)
     if (info.Length() == 0) {
         pix = 0;
     } else if (info.Length() == 1 && Image::HasInstance(info[0])) {
-        pix = pixCopy(NULL, Image::Pixels(info[0]->ToObject()));
+        pix = pixCopy(NULL, Image::Pixels(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked()));
     } else if (info.Length() == 2 && node::Buffer::HasInstance(info[1])) {
-        String::Utf8Value format(info[0]->ToString());
-        Local<Object> buffer = info[1]->ToObject();
+        String::Utf8Value format(info.GetIsolate(), info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>()));
+        Local<Object> buffer = info[1]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
         unsigned char *in = reinterpret_cast<unsigned char*>(node::Buffer::Data(buffer));
         size_t inLength = node::Buffer::Length(buffer);
         if (strcmp("png", *format) == 0) {
@@ -312,23 +312,23 @@ NAN_METHOD(Image::New)
         }
     } else if (info.Length() == 3 && info[0]->IsNumber() && info[1]->IsNumber()
                && info[2]->IsNumber()) {
-        int32_t width = info[0]->Int32Value();
-        int32_t height = info[1]->Int32Value();
-        int32_t depth = info[2]->Int32Value();
+        int32_t width = Nan::To<int32_t>(info[0]).FromJust();
+        int32_t height = Nan::To<int32_t>(info[1]).FromJust();
+        int32_t depth = Nan::To<int32_t>(info[2]).FromJust();
         pix = pixCreate(width, height, depth);
     } else if (info.Length() == 3 &&
                (Image::HasInstance(info[0]) || info[0]->IsNull() || info[0]->IsUndefined()) &&
                (Image::HasInstance(info[1]) || info[1]->IsNull() || info[0]->IsUndefined()) &&
                (Image::HasInstance(info[2]) || info[2]->IsNull() || info[0]->IsUndefined())) {
-        pix = pixCompose(Image::Pixels(info[0]->ToObject()),
-                Image::Pixels(info[1]->ToObject()),
-                Image::Pixels(info[2]->ToObject()));
+        pix = pixCompose(Image::Pixels(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked()),
+                Image::Pixels(info[1]->ToObject(Nan::GetCurrentContext()).ToLocalChecked()),
+                Image::Pixels(info[2]->ToObject(Nan::GetCurrentContext()).ToLocalChecked()));
     } else if (info.Length() == 4 && node::Buffer::HasInstance(info[1])) {
-        String::Utf8Value format(info[0]->ToString());
-        Local<Object> buffer = info[1]->ToObject();
+        String::Utf8Value format(info.GetIsolate(), info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>()));
+        Local<Object> buffer = info[1]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
         size_t length = node::Buffer::Length(buffer);
-        int32_t width = info[2]->Int32Value();
-        int32_t height = info[3]->Int32Value();
+        int32_t width = Nan::To<int32_t>(info[2]).FromJust();
+        int32_t height = Nan::To<int32_t>(info[3]).FromJust();
         int32_t depth;
         int32_t targetDepth = 32;
         if (strcmp("rgba", *format) == 0) {
@@ -402,7 +402,7 @@ NAN_METHOD(Image::Or)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (Image::HasInstance(info[0])) {
-        Pix *otherPix = Image::Pixels(info[0]->ToObject());
+        Pix *otherPix = Image::Pixels(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
         Pix *pixd = pixOr(NULL, obj->pix_, otherPix);
         if (pixd == NULL) {
             return Nan::ThrowTypeError("error while applying OR");
@@ -417,7 +417,7 @@ NAN_METHOD(Image::And)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (Image::HasInstance(info[0])) {
-        Pix *otherPix = Image::Pixels(info[0]->ToObject());
+        Pix *otherPix = Image::Pixels(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
         Pix *pixd = pixAnd(NULL, obj->pix_, otherPix);
         if (pixd == NULL) {
             return Nan::ThrowTypeError("error while applying AND");
@@ -432,7 +432,7 @@ NAN_METHOD(Image::Xor)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (Image::HasInstance(info[0])) {
-        Pix *otherPix = Image::Pixels(info[0]->ToObject());
+        Pix *otherPix = Image::Pixels(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
         Pix *pixd = pixXor(NULL, obj->pix_, otherPix);
         if (pixd == NULL) {
             return Nan::ThrowTypeError("error while applying XOR");
@@ -447,7 +447,7 @@ NAN_METHOD(Image::Add)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (Image::HasInstance(info[0])) {
-        Pix *otherPix = Image::Pixels(info[0]->ToObject());
+        Pix *otherPix = Image::Pixels(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
         Pix *pixd;
         if (obj->pix_->d == 32) {
             pixd = pixAddRGB(obj->pix_, otherPix);
@@ -475,7 +475,7 @@ NAN_METHOD(Image::Subtract)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (Image::HasInstance(info[0])) {
-        Pix *otherPix = Image::Pixels(info[0]->ToObject());
+        Pix *otherPix = Image::Pixels(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
         Pix *pixd;
         if(obj->pix_->d >= 8) {
             if (obj->pix_ == otherPix) {
@@ -501,8 +501,8 @@ NAN_METHOD(Image::Convolve)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (info[0]->IsNumber() && info[1]->IsNumber()) {
-        int width = static_cast<int>(ceil(info[0]->NumberValue()));
-        int height = static_cast<int>(ceil(info[1]->NumberValue()));
+        int width = static_cast<int>(ceil(Nan::To<double>(info[0]).ToChecked()));
+        int height = static_cast<int>(ceil(Nan::To<double>(info[1]).ToChecked()));
         Pix *pixs;
         if(obj->pix_->d == 1) {
             pixs = pixConvert1To8(NULL, obj->pix_, 0, 255);
@@ -524,8 +524,8 @@ NAN_METHOD(Image::Unsharp)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (info[0]->IsNumber() && info[1]->IsNumber()) {
-        int halfWidth = static_cast<int>(ceil(info[0]->NumberValue()));
-        float fract = static_cast<float>(info[1]->NumberValue());
+        int halfWidth = static_cast<int>(ceil(Nan::To<double>(info[0]).ToChecked()));
+        float fract = static_cast<float>(Nan::To<double>(info[1]).ToChecked());
         Pix *pixd = pixUnsharpMasking(obj->pix_, halfWidth, fract);
         if (pixd == NULL) {
             return Nan::ThrowTypeError("error while applying unsharp");
@@ -541,7 +541,7 @@ NAN_METHOD(Image::Rotate)
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (info[0]->IsNumber()) {
         const float deg2rad = 3.1415926535f / 180.0f;
-        float angle = static_cast<float>(info[0]->NumberValue());
+        float angle = static_cast<float>(Nan::To<double>(info[0]).ToChecked());
         Pix *pixd = pixRotate(obj->pix_, deg2rad * angle,
                               L_ROTATE_AREA_MAP, L_BRING_IN_WHITE,
                               obj->pix_->w, obj->pix_->h);
@@ -558,8 +558,8 @@ NAN_METHOD(Image::Scale)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (info[0]->IsNumber() && (info.Length() != 2 || info[1]->IsNumber())) {
-        float scaleX = static_cast<float>(info[0]->NumberValue());
-        float scaleY = static_cast<float>(info.Length() == 2 ? info[1]->NumberValue() : scaleX);
+        float scaleX = static_cast<float>(Nan::To<double>(info[0]).ToChecked());
+        float scaleY = static_cast<float>(info.Length() == 2 ? Nan::To<double>(info[1]).ToChecked() : scaleX);
         Pix *pixd = pixScale(obj->pix_, scaleX, scaleY);
         if (pixd == NULL) {
             return Nan::ThrowTypeError("error while scaling");
@@ -591,12 +591,12 @@ NAN_METHOD(Image::InRange)
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (info[0]->IsNumber() && info[1]->IsNumber() && info[2]->IsNumber() &&
             info[3]->IsNumber() && info[4]->IsNumber() && info[5]->IsNumber()) {
-        int32_t val1l = info[0]->Int32Value();
-        int32_t val2l = info[1]->Int32Value();
-        int32_t val3l = info[2]->Int32Value();
-        int32_t val1u = info[3]->Int32Value();
-        int32_t val2u = info[4]->Int32Value();
-        int32_t val3u = info[5]->Int32Value();
+        int32_t val1l = Nan::To<int32_t>(info[0]).FromJust();
+        int32_t val2l = Nan::To<int32_t>(info[1]).FromJust();
+        int32_t val3l = Nan::To<int32_t>(info[2]).FromJust();
+        int32_t val1u = Nan::To<int32_t>(info[3]).FromJust();
+        int32_t val2u = Nan::To<int32_t>(info[4]).FromJust();
+        int32_t val3u = Nan::To<int32_t>(info[5]).FromJust();
         Pix *pixd = pixInRange(obj->pix_, val1l, val2l, val3l,
                                val1u, val2u, val3u);
         if (pixd == NULL) {
@@ -615,7 +615,7 @@ NAN_METHOD(Image::Histogram)
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     PIX *mask = NULL;
     if (info.Length() >= 1 && Image::HasInstance(info[0])) {
-        mask = Image::Pixels(info[1]->ToObject());
+        mask = Image::Pixels(info[1]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
     }
     NUMA *hist = pixGetGrayHistogramMasked(obj->pix_, mask, 0, 0, obj->pix_->h > 400 ? 2 : 1);
     if (!hist) {
@@ -638,7 +638,7 @@ NAN_METHOD(Image::Projection)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (info[0]->IsString()) {
-        String::Utf8Value mode(info[0]->ToString());
+        String::Utf8Value mode(info.GetIsolate(), info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>()));
         ProjectionMode modeEnum;
         if (strcmp("horizontal", *mode) == 0) {
             modeEnum = Horizontal;
@@ -669,8 +669,8 @@ NAN_METHOD(Image::SetMasked)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (Image::HasInstance(info[0]) && info[1]->IsNumber()) {
-        Pix *mask = Image::Pixels(info[0]->ToObject());
-        int value = info[1]->Int32Value();
+        Pix *mask = Image::Pixels(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
+        int value = Nan::To<int32_t>(info[1]).FromJust();
         if (pixSetMasked(obj->pix_, mask, value) == 1) {
             return Nan::ThrowTypeError("error while applying mask");
         }
@@ -684,14 +684,14 @@ NAN_METHOD(Image::ApplyCurve)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (info[0]->IsArray() &&
-            info[0]->ToObject()->Get(Nan::New("length").ToLocalChecked())->Uint32Value() == 256) {
+            Nan::To<int32_t>(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Get(Nan::New("length").ToLocalChecked())).FromJust() == 256) {
         NUMA *numa = numaCreate(256);
         for (int i = 0; i < 256; i++) {
-            numaAddNumber(numa, (l_float32)info[0]->ToObject()->Get(i)->ToInt32()->Value());
+            numaAddNumber(numa, (l_float32) Nan::To<int32_t>(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Get(i)).FromJust());
         }
         PIX *mask = NULL;
         if (info.Length() >= 2 && Image::HasInstance(info[1])) {
-            mask = Image::Pixels(info[1]->ToObject());
+            mask = Image::Pixels(info[1]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
         }
         int result = pixTRCMap(obj->pix_, mask, numa);
         if (result != 0) {
@@ -707,9 +707,9 @@ NAN_METHOD(Image::RankFilter)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (info[0]->IsNumber() && info[1]->IsNumber() && info[2]->IsNumber()) {
-        int width = static_cast<int>(ceil(info[0]->NumberValue()));
-        int height = static_cast<int>(ceil(info[1]->NumberValue()));
-        float rank = static_cast<float>(info[2]->NumberValue());
+        int width = static_cast<int>(ceil(Nan::To<double>(info[0]).ToChecked()));
+        int height = static_cast<int>(ceil(Nan::To<double>(info[1]).ToChecked()));
+        float rank = static_cast<float>(Nan::To<double>(info[2]).ToChecked());
         PIX *pixd = pixRankFilter(obj->pix_, width, height, rank);
         if (pixd == NULL) {
             return Nan::ThrowTypeError("error while applying rank filter");
@@ -724,7 +724,7 @@ NAN_METHOD(Image::OctreeColorQuant)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (info[0]->IsInt32()) {
-        int colors = info[0]->Int32Value();
+        int colors = Nan::To<int32_t>(info[0]).FromJust();
         PIX *pixd = pixOctreeColorQuant(obj->pix_, colors, 0);
         if (pixd == NULL) {
             return Nan::ThrowTypeError("error while quantizating");
@@ -739,7 +739,7 @@ NAN_METHOD(Image::MedianCutQuant)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (info[0]->IsInt32()) {
-        int colors = info[0]->Int32Value();
+        int colors = Nan::To<int32_t>(info[0]).FromJust();
         PIX *pixd = pixMedianCutQuantGeneral(obj->pix_, 0, 0, colors, 0, 1, 1);
         if (pixd == NULL) {
             return Nan::ThrowTypeError("error while quantizating");
@@ -754,7 +754,7 @@ NAN_METHOD(Image::Threshold)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (info.Length() == 0 || info[0]->IsInt32()) {
-        int value = info.Length() == 0 ? 128 : info[0]->Int32Value();
+        int value = info.Length() == 0 ? 128 : Nan::To<int32_t>(info[0]).FromJust();
         PIX *pixd = pixConvertTo1(obj->pix_, value);
         if (pixd == NULL) {
             return Nan::ThrowTypeError("error while thresholding");
@@ -780,7 +780,7 @@ NAN_METHOD(Image::ToGray)
             return Nan::ThrowError("error while computing grayscale image");
         }
     } else if (info.Length() == 1 && info[0]->IsString()) {
-        String::Utf8Value type(info[0]->ToString());
+        String::Utf8Value type(info.GetIsolate(), info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>()));
         int32_t typeInt;
         if (strcmp("min", *type) == 0) {
             typeInt = L_CHOOSE_MIN;
@@ -799,9 +799,9 @@ NAN_METHOD(Image::ToGray)
         }
     } else if (info.Length() == 3 && info[0]->IsNumber()
                && info[1]->IsNumber() && info[2]->IsNumber()) {
-        float rwt = static_cast<float>(info[0]->NumberValue());
-        float gwt = static_cast<float>(info[1]->NumberValue());
-        float bwt = static_cast<float>(info[2]->NumberValue());
+        float rwt = static_cast<float>(Nan::To<double>(info[0]).ToChecked());
+        float gwt = static_cast<float>(Nan::To<double>(info[1]).ToChecked());
+        float bwt = static_cast<float>(Nan::To<double>(info[2]).ToChecked());
         PIX *grayPix = pixConvertRGBToGray(
                     obj->pix_, rwt, gwt, bwt);
         if (grayPix != NULL) {
@@ -847,8 +847,8 @@ NAN_METHOD(Image::Erode)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (info[0]->IsNumber() && info[1]->IsNumber()) {
-        int width = static_cast<int>(ceil(info[0]->NumberValue()));
-        int height = static_cast<int>(ceil(info[1]->NumberValue()));
+        int width = static_cast<int>(ceil(Nan::To<double>(info[0]).ToChecked()));
+        int height = static_cast<int>(ceil(Nan::To<double>(info[1]).ToChecked()));
         PIX *pixd = 0;
         if (obj->pix_->d == 1) {
             pixd = pixErodeBrick(NULL, obj->pix_, width, height);
@@ -868,8 +868,8 @@ NAN_METHOD(Image::Dilate)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (info[0]->IsNumber() && info[1]->IsNumber()) {
-        int width = static_cast<int>(ceil(info[0]->NumberValue()));
-        int height = static_cast<int>(ceil(info[1]->NumberValue()));
+        int width = static_cast<int>(ceil(Nan::To<double>(info[0]).ToChecked()));
+        int height = static_cast<int>(ceil(Nan::To<double>(info[1]).ToChecked()));
         PIX *pixd = 0;
         if (obj->pix_->d == 1) {
             pixd = pixDilateBrick(NULL, obj->pix_, width, height);
@@ -889,8 +889,8 @@ NAN_METHOD(Image::Open)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (info[0]->IsNumber() && info[1]->IsNumber()) {
-        int width = static_cast<int>(ceil(info[0]->NumberValue()));
-        int height = static_cast<int>(ceil(info[1]->NumberValue()));
+        int width = static_cast<int>(ceil(Nan::To<double>(info[0]).ToChecked()));
+        int height = static_cast<int>(ceil(Nan::To<double>(info[1]).ToChecked()));
         PIX *pixd = 0;
         if (obj->pix_->d == 1) {
             pixd = pixOpenBrick(NULL, obj->pix_, width, height);
@@ -910,8 +910,8 @@ NAN_METHOD(Image::Close)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (info[0]->IsNumber() && info[1]->IsNumber()) {
-        int width = static_cast<int>(ceil(info[0]->NumberValue()));
-        int height = static_cast<int>(ceil(info[1]->NumberValue()));
+        int width = static_cast<int>(ceil(Nan::To<double>(info[0]).ToChecked()));
+        int height = static_cast<int>(ceil(Nan::To<double>(info[1]).ToChecked()));
         PIX *pixd = 0;
         if (obj->pix_->d == 1) {
             pixd = pixCloseBrick(NULL, obj->pix_, width, height);
@@ -932,14 +932,14 @@ NAN_METHOD(Image::Thin)
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (info[0]->IsString() && info[1]->IsInt32() && info[2]->IsInt32()) {
         int typeInt = 0;
-        String::Utf8Value type(info[0]->ToString());
+        String::Utf8Value type(info.GetIsolate(), info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>()));
         if (strcmp("fg", *type) == 0) {
             typeInt = L_THIN_FG;
         } else if (strcmp("bg", *type) == 0) {
             typeInt = L_THIN_BG;
         }
-        int connectivity = info[1]->Int32Value();
-        int maxIters = info[2]->Int32Value();
+        int connectivity = Nan::To<int32_t>(info[1]).FromJust();
+        int maxIters = Nan::To<int32_t>(info[2]).FromJust();
         PIX *pix = obj->pix_;
         // If image is grayscale, binarize with fixed threshold
         if (pix->d != 1) {
@@ -963,7 +963,7 @@ NAN_METHOD(Image::MaxDynamicRange)
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (info[0]->IsString()) {
         int typeInt = 0;
-        String::Utf8Value type(info[0]->ToString());
+        String::Utf8Value type(info.GetIsolate(), info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>()));
         if (strcmp("linear", *type) == 0) {
             typeInt = L_SET_PIXELS;
         } else if (strcmp("log", *type) == 0) {
@@ -985,11 +985,11 @@ NAN_METHOD(Image::OtsuAdaptiveThreshold)
     if (info[0]->IsInt32() && info[1]->IsInt32()
             && info[2]->IsInt32() && info[3]->IsInt32()
             && info[4]->IsNumber()) {
-        int32_t sx = info[0]->Int32Value();
-        int32_t sy = info[1]->Int32Value();
-        int32_t smoothx = info[2]->Int32Value();
-        int32_t smoothy = info[3]->Int32Value();
-        float scorefact = static_cast<float>(info[4]->NumberValue());
+        int32_t sx = Nan::To<int32_t>(info[0]).FromJust();
+        int32_t sy = Nan::To<int32_t>(info[1]).FromJust();
+        int32_t smoothx = Nan::To<int32_t>(info[2]).FromJust();
+        int32_t smoothy = Nan::To<int32_t>(info[3]).FromJust();
+        float scorefact = static_cast<float>(Nan::To<double>(info[0]).ToChecked());
         PIX *ppixth;
         PIX *ppixd;
         int error = pixOtsuAdaptiveThreshold(
@@ -1017,9 +1017,9 @@ NAN_METHOD(Image::LineSegments)
         if (obj->pix_->d != 8) {
             return Nan::ThrowTypeError("Not a 8bpp Image");
         }
-        int accuracy = info[0]->Int32Value();
-        int maxLineSegments = info[1]->Int32Value();
-        bool useWMS = info[2]->BooleanValue();
+        int accuracy = Nan::To<int32_t>(info[0]).FromJust();
+        int maxLineSegments = Nan::To<int32_t>(info[1]).FromJust();
+        bool useWMS = Nan::To<bool>(info[2]).FromJust();
         
         if ((accuracy >= obj->pix_->w) || (accuracy >= obj->pix_->h)) {
             return Nan::ThrowError("LineSegments: Accuracy must be smaller than image");
@@ -1044,13 +1044,13 @@ NAN_METHOD(Image::LineSegments)
         const auto strP2 = Nan::New("p2").ToLocalChecked();
         const auto strError = Nan::New("error").ToLocalChecked();
         for(size_t i = 0; i < lSegs.size(); i++) {
-            Handle<Object> p1 = Nan::New<Object>();
+            Local<Object> p1 = Nan::New<Object>();
             p1->Set(strX, Nan::New<Int32>(lSegs[i][0].x));
             p1->Set(strY, Nan::New<Int32>(lSegs[i][0].y));
-            Handle<Object> p2 = Nan::New<Object>();
+            Local<Object> p2 = Nan::New<Object>();
             p2->Set(strX, Nan::New<Int32>(lSegs[i][1].x));
             p2->Set(strY, Nan::New<Int32>(lSegs[i][1].y));
-            Handle<Object> result = Nan::New<Object>();
+            Local<Object> result = Nan::New<Object>();
             result->Set(strP1, p1);
             result->Set(strP2, p2);
             result->Set(strError, Nan::New<Number>(errors[i]));
@@ -1086,7 +1086,7 @@ NAN_METHOD(Image::ConnectedComponents)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (info[0]->IsInt32()) {
-        int connectivity = info[0]->Int32Value();
+        int connectivity = Nan::To<int32_t>(info[0]).FromJust();
         PIX *pix = obj->pix_;
         // If image is grayscale, binarize with fixed threshold
         if (pix->d != 1) {
@@ -1114,7 +1114,7 @@ NAN_METHOD(Image::DistanceFunction)
 {
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.Holder());
     if (info[0]->IsInt32()) {
-        int connectivity = info[0]->Int32Value();
+        int connectivity = Nan::To<int32_t>(info[0]).FromJust();
         PIX *pix = obj->pix_;
         // If image is grayscale, binarize with fixed threshold
         if (pix->d != 1) {
@@ -1167,7 +1167,7 @@ NAN_METHOD(Image::FillBox)
                 boxDestroy(&box);
                 return Nan::ThrowTypeError("Not a 8bpp or 1bpp Image");
             }
-            int value = info[boxEnd + 1]->Int32Value();
+            int value = Nan::To<int32_t>(info[boxEnd + 1]).FromJust();
             error = pixSetInRectArbitrary(obj->pix_, box, value);
         }
         else if (info[boxEnd + 1]->IsInt32() && info[boxEnd + 2]->IsInt32()
@@ -1176,13 +1176,13 @@ NAN_METHOD(Image::FillBox)
                 boxDestroy(&box);
                 return Nan::ThrowTypeError("Not a 32bpp Image");
             }
-            uint8_t r = info[boxEnd + 1]->Int32Value();
-            uint8_t g = info[boxEnd + 2]->Int32Value();
-            uint8_t b = info[boxEnd + 3]->Int32Value();
+            uint8_t r = Nan::To<int32_t>(info[boxEnd + 1]).FromJust();
+            uint8_t g = Nan::To<int32_t>(info[boxEnd + 2]).FromJust();
+            uint8_t b = Nan::To<int32_t>(info[boxEnd + 3]).FromJust();
             l_uint32 pixel;
             composeRGBPixel(r, g, b, &pixel);
             if (info[boxEnd + 4]->IsNumber()) {
-                float fract = static_cast<float>(info[boxEnd + 4]->NumberValue());
+                float fract = static_cast<float>(Nan::To<double>(info[boxEnd + 4]).FromJust());
                 error = pixBlendInRect(obj->pix_, box, pixel, fract);
             }
             else {
@@ -1212,7 +1212,7 @@ NAN_METHOD(Image::DrawBox)
     int boxEnd;
     BOX *box = toBox(info, 0, &boxEnd);
     if (box && info[boxEnd + 1]->IsInt32()) {
-        int borderWidth = info[boxEnd + 1]->ToInt32()->Value();
+        int borderWidth = Nan::To<int32_t>(info[boxEnd + 1]).FromJust();
         int error = 0;
         if (info[boxEnd + 2]->IsString()) {
             int op  = toOp(info[boxEnd + 2]);
@@ -1227,11 +1227,11 @@ NAN_METHOD(Image::DrawBox)
                 boxDestroy(&box);
                 return Nan::ThrowTypeError("Not a 32bpp Image");
             }
-            uint8_t r = info[boxEnd + 2]->Int32Value();
-            uint8_t g = info[boxEnd + 3]->Int32Value();
-            uint8_t b = info[boxEnd + 4]->Int32Value();
+            uint8_t r = Nan::To<int32_t>(info[boxEnd + 2]).FromJust();
+            uint8_t g = Nan::To<int32_t>(info[boxEnd + 3]).FromJust();
+            uint8_t b = Nan::To<int32_t>(info[boxEnd + 4]).FromJust();
             if (info[boxEnd + 5]->IsNumber()) {
-                float fract = static_cast<float>(info[boxEnd + 5]->NumberValue());
+                float fract = static_cast<float>(Nan::To<double>(info[boxEnd + 5]).FromJust());
                 error = pixRenderBoxBlend(obj->pix_, box, borderWidth, r, g, b, fract);
             } else {
                 error = pixRenderBoxArb(obj->pix_, box, borderWidth, r, g, b);
@@ -1261,13 +1261,13 @@ NAN_METHOD(Image::DrawLine)
     const auto strY = Nan::New("y").ToLocalChecked();
     
     if (info[0]->IsObject() && info[1]->IsObject() && info[2]->IsInt32()) {
-        Handle<Object> p1 = info[0]->ToObject();
-        Handle<Object> p2 = info[1]->ToObject();
-        l_int32 x1 = round(p1->Get(strX)->ToNumber()->Value());
-        l_int32 y1 = round(p1->Get(strY)->ToNumber()->Value());
-        l_int32 x2 = round(p2->Get(strX)->ToNumber()->Value());
-        l_int32 y2 = round(p2->Get(strY)->ToNumber()->Value());
-        l_int32 width = info[2]->Int32Value();
+        Local<Object> p1 = info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+        Local<Object> p2 = info[1]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+        l_int32 x1 = round(Nan::To<double>(p1->Get(strX)).ToChecked());
+        l_int32 y1 = round(Nan::To<double>(p1->Get(strY)).ToChecked());
+        l_int32 x2 = round(Nan::To<double>(p2->Get(strX)).ToChecked());
+        l_int32 y2 = round(Nan::To<double>(p2->Get(strY)).ToChecked());
+        l_int32 width = Nan::To<int32_t>(info[2]).FromJust();
         l_int32 error;
         if (info[3]->IsString()) {
             int op  = toOp(info[3]);
@@ -1279,11 +1279,11 @@ NAN_METHOD(Image::DrawLine)
             if (obj->pix_->d < 32) {
                 return Nan::ThrowTypeError("Not a 32bpp Image");
             }
-            uint8_t r = info[3]->Int32Value();
-            uint8_t g = info[4]->Int32Value();
-            uint8_t b = info[5]->Int32Value();
+            uint8_t r = Nan::To<int32_t>(info[3]).FromJust();
+            uint8_t g = Nan::To<int32_t>(info[4]).FromJust();
+            uint8_t b = Nan::To<int32_t>(info[5]).FromJust();
             if (info[6]->IsNumber()) {
-                float fract = static_cast<float>(info[6]->NumberValue());
+                float fract = static_cast<float>(Nan::To<double>(info[6]).FromJust());
                 error = pixRenderLineBlend(obj->pix_, x1, y1, x2, y2, width, r, g, b, fract);
             } else {
                 error = pixRenderLineArb(obj->pix_, x1, y1, x2, y2, width, r, g, b);
@@ -1312,7 +1312,7 @@ NAN_METHOD(Image::DrawImage)
     int boxEnd;
     BOX *box = toBox(info, 1, &boxEnd);
     if (Image::HasInstance(info[0]) && box) {
-        PIX *otherPix = Image::Pixels(info[0]->ToObject());
+        PIX *otherPix = Image::Pixels(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
         int error = pixRasterop(obj->pix_, box->x, box->y, box->w, box->h,
                                 PIX_SRC, otherPix, 0, 0);
         boxDestroy(&box);
@@ -1335,7 +1335,7 @@ NAN_METHOD(Image::ToBuffer)
     jpge::params params;
     Image *obj = Nan::ObjectWrap::Unwrap<Image>(info.This());
     if (info.Length() >= 1 && info[0]->IsString()) {
-        String::Utf8Value format(info[0]->ToString());
+        String::Utf8Value format(info.GetIsolate(), info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>()));
         if (strcmp("raw", *format) == 0) {
             formatInt = FORMAT_RAW;
         } else if (strcmp("png", *format) == 0) {
@@ -1343,7 +1343,7 @@ NAN_METHOD(Image::ToBuffer)
         } else if (strcmp("jpg", *format) == 0) {
             formatInt = FORMAT_JPG;
             if (info[1]->IsNumber()) {
-                params.m_quality = info[1]->Int32Value();
+                params.m_quality = Nan::To<int32_t>(info[1]).FromJust();
             }
         } else {
             std::stringstream msg;

@@ -20,7 +20,7 @@ class Image : public Nan::ObjectWrap
 public:
     static Nan::Persistent<v8::FunctionTemplate> constructor_template;
 
-    static bool HasInstance(v8::Handle<v8::Value> val);
+    static bool HasInstance(v8::Local<v8::Value> val);
     static Pix *Pixels(v8::Local<v8::Object> obj);
 
 	static NAN_MODULE_INIT(Init);
